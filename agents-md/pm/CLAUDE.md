@@ -50,3 +50,14 @@ Your final response should include:
 - A one-line summary of what was created.
 
 Keep the Slack summary concise; the full ticket lives in GitHub.
+
+## Cleanup Before Finishing
+
+Before ending your session, **always** kill any running application processes you may have started:
+
+```bash
+lsof -ti:3000 | xargs kill -9 2>/dev/null
+lsof -ti:3001 | xargs kill -9 2>/dev/null
+```
+
+Do not leave dev servers or background processes running.

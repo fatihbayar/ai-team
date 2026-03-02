@@ -47,4 +47,15 @@ Produce a structured document that includes:
 - Post the technical solution document to the Slack thread (or provide it in your response so the orchestrator can post it).
 - Add the solution as a comment on the related GitHub Issue when possible (e.g. via `gh issue comment <number> --body "..."` from the repo).
 
+## Cleanup Before Finishing
+
+Before ending your session, **always** kill any running application processes you may have started during codebase analysis:
+
+```bash
+lsof -ti:3000 | xargs kill -9 2>/dev/null
+lsof -ti:3001 | xargs kill -9 2>/dev/null
+```
+
+Do not leave dev servers or background processes running.
+
 Your output is the single source of truth for the Developer agent; be precise and actionable.

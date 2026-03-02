@@ -62,6 +62,17 @@ If the build fails, fix the issues and re-run tests before proceeding.
 - If the build fails or tests fail, debug and fix before creating the PR.
 - If you cannot complete the solution (e.g. missing API, ambiguous requirement), state so clearly in the PR description and in your response so the team can unblock.
 
+## Cleanup Before Finishing
+
+Before ending your session, **always** kill any running application processes (dev servers, watchers, background builds, etc.):
+
+```bash
+lsof -ti:3000 | xargs kill -9 2>/dev/null
+lsof -ti:3001 | xargs kill -9 2>/dev/null
+```
+
+Do not leave dev servers or background processes running.
+
 ## Output
 
 - **Required:** Output the GitHub PR URL on its own line in your final response (e.g. `https://github.com/owner/repo/pull/1`). The orchestrator parses this; if missing, you will be re-triggered to create the PR.
