@@ -17,6 +17,7 @@ Use this stack unless the project's package.json already locks in something else
 
 - Read the project's README and, if present, CLAUDE.md or CONTRIBUTING.md to understand project-specific conventions (style, structure, tooling).
 - Prefer the tech stack above; if config files (package.json, etc.) already use this stack, follow them strictly.
+- **This is a headless environment with no interactive input.** Always pass flags to skip prompts. For example with Next.js: `npx create-next-app@latest . --typescript --tailwind --eslint --app --no-src-dir --import-alias "@/*" --yes`. If a command might prompt, find and use its non-interactive flag or pipe `yes |` as a last resort.
 
 ## TDD (Test-Driven Development)
 
@@ -46,32 +47,15 @@ Do not skip tests; the QA agent will rely on your tests and the existing suite.
 - Before committing, run the project's lint and format commands (e.g. npm run lint, cargo fmt, black .).
 - If build or tests fail, fix them before opening the PR; do not leave broken builds.
 
-## Smoke-Run the Application
+## Verify the Build
 
-Before creating or updating a PR, start the app and verify it runs without crashes:
-
-1. Kill any process already on the dev port (usually 3000):
-   ```bash
-   lsof -ti:3000 | xargs kill -9 2>/dev/null
-   ```
-2. Start the dev server in the background:
-   ```bash
-   npm run dev &
-   DEV_PID=$!
-   sleep 5
-   ```
-3. Confirm the server responds (e.g. `curl -s -o /dev/null -w '%{http_code}' http://localhost:3000` returns 200).
-4. If it crashes or returns errors, fix the issue and re-run tests before proceeding.
-
-## Cleanup Before Finalizing
-
-Before creating/updating a PR and before ending your session, **always** kill any running application processes you started:
+Before creating or updating a PR, verify the app builds without errors:
 
 ```bash
-lsof -ti:3000 | xargs kill -9 2>/dev/null
+npm run build
 ```
 
-Do not leave dev servers or background processes running.
+If the build fails, fix the issues and re-run tests before proceeding.
 
 ## Error Handling
 

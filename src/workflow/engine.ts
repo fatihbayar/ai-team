@@ -24,7 +24,7 @@ const STATUS_MAP: Record<AgentRole, string> = {
 
 export type PostInThreadFn = (text: string) => Promise<void>;
 
-function getAgentConfig(role: AgentRole): { allowedTools: string[] } {
+function getAgentConfig(role: AgentRole): { allowedTools: string[]; maxTurns?: number } {
   switch (role) {
     case "pm":
       return pmAgent;
@@ -196,6 +196,7 @@ async function runAgentForState(
         task,
         cwd: project.repoPath,
         allowedTools: config.allowedTools,
+        maxTurns: config.maxTurns,
       }),
       new Promise<never>((_, reject) =>
         setTimeout(

@@ -21,7 +21,6 @@ export async function runAgent(opts: RunAgentOptions): Promise<string> {
   const claudeMdPath = join(pathToAgentsMd, opts.role, "CLAUDE.md");
   const rolePrompt = readFileSync(claudeMdPath, "utf-8");
 
-  let result = "";
   const q = query({
     prompt: opts.task,
     options: {
@@ -35,14 +34,16 @@ export async function runAgent(opts: RunAgentOptions): Promise<string> {
   });
 
   for await (const message of q) {
-    const m = message as { type?: string; message?: { content?: Array<{ type?: string; text?: string }> } };
-    if (m.type === "assistant" && m.message?.content) {
-      const text = m.message.content
-        .filter((b) => b.type === "text")
-        .map((b) => (b as { text?: string }).text ?? "")
-        .join("");
-      result += text;
+    const m = message as Record<string, unknown>;
+    if (m.type === "result") {
+      if (m.subtype === "success") {
+        return (m as { result?: string }).result ?? "";
+      }
+      const errors = (m as { errors?: string[] }).errors ?? [];
+      throw new Error(
+        `Agent ${opts.role} ended with ${m.subtype}${errors.length ? ": " + errors.join("; ") : ""}`
+      );
     }
   }
-  return result;
+  throw new Error(`Agent ${opts.role} ended without a result message`);
 }
