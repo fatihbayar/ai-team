@@ -1,13 +1,16 @@
+import { existsSync } from "fs";
 import * as pmAgent from "../agents/pm.js";
 import * as architectAgent from "../agents/architect.js";
 import * as developerAgent from "../agents/developer.js";
 import * as qaAgent from "../agents/qa.js";
 import { runAgent } from "../agents/runner.js";
-import { env, loadProjectRegistry, agentTimeoutMs } from "../config.js";
-import { initProjectFields, updateProjectStatus } from "../github/projects.js";
+import { env, agentTimeoutMs, projectsDir } from "../config.js";
+import { ensureProjectFieldsInitialized, updateProjectStatus } from "../github/projects.js";
 import { addIssueToProjectAndGetItemId, getProjectItemIdByIssue } from "../github/issues.js";
 import * as store from "./store.js";
 import type { AgentRole, ProjectConfig, WorkflowState } from "./types.js";
+
+const bootstrapLocks = new Set<string>();
 
 const PIPELINE: AgentRole[] = ["pm", "architect", "developer", "qa"];
 
@@ -107,9 +110,18 @@ export async function start(
           ? "qa"
           : "pm";
 
-  if (store.has(threadTs)) {
+  if (store.has(threadTs) || bootstrapLocks.has(threadTs)) {
     await postInThread("A workflow is already running in this thread. Please wait for it to finish.");
     return;
+  }
+
+  if (env.githubOwner) {
+    try {
+      ensureProjectFieldsInitialized(env.githubOwner, project.githubProjectNumber);
+    } catch (e) {
+      console.error("Could not init project status fields:", e);
+      await postInThread("_Could not initialize project status fields. Status updates may fail._");
+    }
   }
 
   const state: WorkflowState = {
@@ -156,7 +168,8 @@ async function runAgentForState(
     try {
       updateProjectStatus(project.githubProjectNumber, state.projectItemId, STATUS_MAP[currentAgent]);
     } catch (e) {
-      await postInThread(`_Could not update project status to ${STATUS_MAP[currentAgent]}: ${(e as Error).message}_`);
+      console.error(`Could not update project status to ${STATUS_MAP[currentAgent]}:`, e);
+      await postInThread(`_Could not update project status to ${STATUS_MAP[currentAgent]}._`);
     }
   }
 
@@ -230,7 +243,8 @@ async function runAgentForState(
         try {
           updateProjectStatus(project.githubProjectNumber, state.projectItemId, "Done");
         } catch (e) {
-          await postInThread(`_Could not update project status to Done: ${(e as Error).message}_`);
+          console.error("Could not update project status to Done:", e);
+          await postInThread("_Could not update project status to Done._");
         }
       }
       await postInThread("_Workflow complete. QA approved._");
@@ -241,7 +255,8 @@ async function runAgentForState(
       try {
         updateProjectStatus(project.githubProjectNumber, state.projectItemId, "Needs Fix");
       } catch (e) {
-        await postInThread(`_Could not set status to Needs Fix: ${(e as Error).message}_`);
+        console.error("Could not set status to Needs Fix:", e);
+        await postInThread("_Could not set status to Needs Fix._");
       }
     }
     await postInThread("_Re-triggering Developer with QA feedback._");
@@ -300,14 +315,70 @@ function buildTaskForRole(role: AgentRole, state: WorkflowState): string {
   }
 }
 
-export function ensureProjectFieldsInitialized(): void {
-  if (!env.githubOwner) return;
-  const registry = loadProjectRegistry();
-  for (const [, project] of registry) {
-    try {
-      initProjectFields(env.githubOwner, project.githubProjectNumber);
-    } catch (e) {
-      console.warn(`Could not init project fields for ${project.githubProjectNumber}:`, (e as Error).message);
-    }
+export async function bootstrapAndStart(
+  channelId: string,
+  threadTs: string,
+  task: string,
+  project: ProjectConfig,
+  postInThread: PostInThreadFn
+): Promise<void> {
+  if (!env.githubOwner) {
+    await postInThread("Bootstrap requires GITHUB_OWNER to be set in the environment.");
+    return;
   }
+
+  if (store.has(threadTs) || bootstrapLocks.has(threadTs)) {
+    await postInThread("A workflow is already running in this thread. Please wait for it to finish.");
+    return;
+  }
+  bootstrapLocks.add(threadTs);
+
+  try {
+    const bootstrapTask =
+      `You are bootstrapping a new project. Do the following in order.\n\n` +
+      `1. Create GitHub repo and local clone:\n` +
+      `   - From directory: ${projectsDir}\n` +
+      `   - Run: gh repo create ${project.githubSlug} --public --add-readme --clone\n` +
+      `   This creates the repo and clones it to ${project.repoPath}\n\n` +
+      `2. Ensure GitHub Project #${project.githubProjectNumber} has a Status single-select field with exactly these options: Triage, Architecture, In Development, In QA, Needs Fix, Done.\n` +
+      `   - Use \`gh project field-list ${project.githubProjectNumber} --owner ${env.githubOwner} --format json\` to check.\n` +
+      `   - If the default Status has different options, add a new single-select field named "Status" with the six options above, or use \`gh api graphql\` to add options to the existing Status field.`;
+
+    await postInThread("_Setting up a new project for this channel (creating repo and configuring GitHub Project)..._");
+
+    let result: string;
+    try {
+      result = await Promise.race([
+        runAgent({
+          role: "developer",
+          task: bootstrapTask,
+          cwd: projectsDir,
+          allowedTools: getAgentConfig("developer").allowedTools,
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Bootstrap timed out after ${Math.round(agentTimeoutMs / 60000)} minutes`)),
+            agentTimeoutMs,
+          )
+        ),
+      ]);
+    } catch (err) {
+      console.error("Bootstrap failed:", err);
+      await postInThread("Bootstrap failed. Check server logs for details.");
+      return;
+    }
+
+    await postInThread(escapeSlackMrkdwn(result));
+
+    if (!existsSync(project.repoPath)) {
+      await postInThread("_Bootstrap completed but the repo was not created. Check the output above for errors._");
+      return;
+    }
+
+    await postInThread("_Project ready. Starting PM with your request..._");
+  } finally {
+    bootstrapLocks.delete(threadTs);
+  }
+
+  await start(channelId, threadTs, "PM", task, project, postInThread);
 }

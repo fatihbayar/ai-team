@@ -71,6 +71,7 @@ export function updateProjectStatus(
   ]);
 }
 
-export function getCached(projectNumber: number): StatusFieldCache | undefined {
-  return cache.get(projectNumber);
+export function ensureProjectFieldsInitialized(owner: string, projectNumber: number): void {
+  if (cache.has(projectNumber)) return;
+  initProjectFields(owner, projectNumber);
 }

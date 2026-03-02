@@ -10,13 +10,10 @@ A TypeScript service that runs four AI agents (PM, Architect, Developer, QA) dri
    ```
    Fill in `.env` with Slack tokens, `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, and `GITHUB_OWNER`. See the plan document for step-by-step API key setup.
 
-2. **Link channels to projects**
-   Edit `projects.json`: map Slack channel names to `repoPath`, `githubSlug`, `defaultBranch`, and `githubProjectNumber` (from your GitHub Project URL).
-
-3. **GitHub Project board**
+2. **GitHub Project board**
    Create a Project with a **Status** single-select field and options: **Triage**, **Architecture**, **In Development**, **In QA**, **Needs Fix**, **Done**.
 
-4. **Install and build**
+3. **Install and build**
    ```bash
    npm install
    npm run build
@@ -34,11 +31,13 @@ Or for development with watch:
 npm run dev
 ```
 
-Then in a linked Slack channel, mention the app and an agent:
+Then in any Slack channel, mention the app with an agent and include the GitHub Project number:
 
-- `@AI Team PM: Add user registration with email verification`
+- `@AI Team PM: Add user registration with email verification. githubProjectNumber: 2`
 
-The bot will resolve the channel to a project, run the PM agent to create a GitHub Issue and add it to the project, then hand off to Architect → Developer → QA. Status on the GitHub Project board updates at each step.
+Project config is derived from the channel name: `repoPath` is `~/Projects/<channel>`, `githubSlug` is `<GITHUB_OWNER>/<channel>`, and `defaultBranch` is always `main`. If the local repo doesn't exist yet, the bot will create it automatically.
+
+The bot runs the PM agent to create a GitHub Issue and add it to the project, then hands off to Architect → Developer → QA. Status on the GitHub Project board updates at each step.
 
 ## Limitations
 

@@ -1,6 +1,6 @@
 import "dotenv/config";
-import { readFileSync, existsSync } from "fs";
-import { join, dirname, resolve, isAbsolute } from "path";
+import { homedir } from "os";
+import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import type { ProjectConfig } from "./workflow/types.js";
 
@@ -25,42 +25,27 @@ export const env = {
 
 export const pathToAgentsMd = join(rootDir, "agents-md");
 
-const projectsPath = join(rootDir, "projects.json");
+export const projectsDir = process.env.PROJECTS_DIR ?? join(homedir(), "Projects");
 
-let projectRegistry: Map<string, ProjectConfig> | null = null;
+const CHANNEL_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,79}$/;
 
-export function loadProjectRegistry(): Map<string, ProjectConfig> {
-  if (projectRegistry) {
-    return projectRegistry;
+export function buildProjectConfig(channelName: string, githubProjectNumber: number): ProjectConfig {
+  if (!CHANNEL_NAME_RE.test(channelName)) {
+    throw new Error(`Invalid channel name: "${channelName}"`);
   }
-  const raw = readFileSync(projectsPath, "utf-8");
-  const data = JSON.parse(raw) as Record<string, ProjectConfig>;
-  for (const [channel, cfg] of Object.entries(data)) {
-    const resolved = resolve(cfg.repoPath);
-    if (!isAbsolute(resolved) || !existsSync(resolved)) {
-      throw new Error(
-        `projects.json: channel "${channel}" has invalid repoPath "${cfg.repoPath}" (resolved to "${resolved}"). Must be an absolute path to an existing directory.`
-      );
-    }
-    cfg.repoPath = resolved;
+  const repoPath = resolve(projectsDir, channelName);
+  if (!repoPath.startsWith(resolve(projectsDir) + "/")) {
+    throw new Error("Invalid channel name: path traversal detected");
   }
-  projectRegistry = new Map(Object.entries(data));
-  return projectRegistry;
-}
-
-export function getProjectByChannel(channelName: string): ProjectConfig | undefined {
-  return loadProjectRegistry().get(channelName);
+  return {
+    repoPath,
+    githubSlug: `${env.githubOwner}/${channelName}`,
+    defaultBranch: "main",
+    githubProjectNumber,
+  };
 }
 
 export const agentRoles = ["pm", "architect", "developer", "qa"] as const;
-export const statusColumnNames = [
-  "Triage",
-  "Architecture",
-  "In Development",
-  "In QA",
-  "Needs Fix",
-  "Done",
-] as const;
 
 export const defaultMaxTurns = 30;
 export const agentTimeoutMs = parseInt(process.env.AGENT_TIMEOUT_MS ?? "1800000", 10);

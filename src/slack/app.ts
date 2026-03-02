@@ -1,6 +1,5 @@
 import { App } from "@slack/bolt";
 import { env } from "../config.js";
-import { ensureProjectFieldsInitialized } from "../workflow/engine.js";
 import { registerRouter } from "./router.js";
 
 const app = new App({
@@ -10,8 +9,6 @@ const app = new App({
 });
 
 registerRouter(app);
-
-ensureProjectFieldsInitialized();
 
 (async () => {
   await app.start();
