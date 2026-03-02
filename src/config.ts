@@ -47,6 +47,6 @@ export function buildProjectConfig(channelName: string, githubProjectNumber: num
 
 export const agentRoles = ["pm", "architect", "developer", "qa"] as const;
 
-export const defaultMaxTurns = 30;
+export const defaultMaxTurns = 200;
 export const agentTimeoutMs = parseInt(process.env.AGENT_TIMEOUT_MS ?? "1800000", 10);
 export const agentModel = process.env.AGENT_MODEL ?? "claude-haiku-4-5";
