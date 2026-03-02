@@ -29,14 +29,24 @@ You will receive **Repository** (owner/repo), **Issue number**, **PR URL**, and 
 
 For UI or flow-related acceptance criteria, use **agent-browser** to automate browser checks:
 
-1. Start the app (e.g. `npm run dev` in the project root). Note the URL (e.g. http://localhost:3000).
+1. **Start the app in the background** — never run the dev server in the foreground or it will block forever:
+   ```bash
+   npm run dev &
+   DEV_PID=$!
+   sleep 5
+   ```
+   Note the URL (usually http://localhost:3000). If port 3000 is already in use, kill the existing process first (`lsof -ti:3000 | xargs kill -9 2>/dev/null`).
 2. Use agent-browser CLI:
    - `npx agent-browser open <app-url>` — navigate to the app
    - `npx agent-browser snapshot -i` — get interactive elements with refs (@e1, @e2, …)
    - `npx agent-browser click @e1`, `npx agent-browser fill @e2 "text"` — interact by ref
    - `npx agent-browser screenshot [path]` — capture evidence
 3. Re-snapshot after page changes. Verify flows (e.g. form submit, navigation) and take screenshots as evidence.
-4. Run `npx agent-browser close` when done.
+4. **Clean up when done** — always stop the dev server and close the browser:
+   ```bash
+   npx agent-browser close
+   kill $DEV_PID 2>/dev/null
+   ```
 
 If agent-browser is not installed: `npm install -g agent-browser` then `agent-browser install` (downloads Chromium). For one-off use, `npx agent-browser` is sufficient.
 
@@ -67,6 +77,17 @@ Approve only when:
 - No regressions observed.
 - Code follows project conventions (lint, format, structure).
 - You have re-run the full test suite after any fix cycle (if Developer pushed new commits).
+
+## Cleanup Before Finalizing
+
+Before approving or rejecting and before ending your session, **always** kill any running application processes and close the browser:
+
+```bash
+npx agent-browser close 2>/dev/null
+lsof -ti:3000 | xargs kill -9 2>/dev/null
+```
+
+Do not leave dev servers, browsers, or background processes running.
 
 ## After Approval
 
