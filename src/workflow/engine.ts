@@ -1,4 +1,5 @@
 import { existsSync } from "fs";
+import { join } from "path";
 import * as pmAgent from "../agents/pm.js";
 import * as architectAgent from "../agents/architect.js";
 import * as developerAgent from "../agents/developer.js";
@@ -146,7 +147,13 @@ export async function start(
 
   const initialTask =
     role === "pm" && env.githubOwner
-      ? `${task}\n\nAfter creating the issue, add it to the GitHub Project board: gh project item-add ${project.githubProjectNumber} --owner ${env.githubOwner} --url <issue-url>.`
+      ? `${task}\n\n` +
+        `Project context:\n` +
+        `- Repository: ${project.githubSlug}\n` +
+        `- Working directory: ${project.repoPath}\n` +
+        `- GitHub Owner: ${env.githubOwner}\n` +
+        `- GitHub Project number: ${project.githubProjectNumber}\n\n` +
+        `After creating the issue, add it to the GitHub Project board: gh project item-add ${project.githubProjectNumber} --owner ${env.githubOwner} --url <issue-url>.`
       : task;
 
   try {
@@ -219,6 +226,11 @@ async function runAgentForState(
   } else if (currentAgent === "developer") {
     const prUrl = parsePrUrlFromOutput(result);
     if (prUrl) state.prUrl = prUrl;
+  }
+
+  if (currentAgent === "pm" && state.issueNumber === null) {
+    await postInThread("_PM did not create a ticket. Workflow stopped._");
+    return;
   }
 
   if (currentAgent === "developer") {
@@ -370,8 +382,8 @@ export async function bootstrapAndStart(
 
     await postInThread(escapeSlackMrkdwn(result));
 
-    if (!existsSync(project.repoPath)) {
-      await postInThread("_Bootstrap completed but the repo was not created. Check the output above for errors._");
+    if (!existsSync(join(project.repoPath, ".git"))) {
+      await postInThread("_Bootstrap completed but the repo was not cloned properly. Check the output above for errors._");
       return;
     }
 

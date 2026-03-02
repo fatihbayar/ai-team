@@ -1,4 +1,5 @@
 import { existsSync } from "fs";
+import { join } from "path";
 import type { App } from "@slack/bolt";
 import { buildProjectConfig } from "../config.js";
 import { bootstrapAndStart, start } from "../workflow/engine.js";
@@ -52,7 +53,7 @@ export function registerRouter(app: App): void {
     }
 
     const textWithoutProjectNumber = text.replace(/githubProjectNumber:\s*\d+/i, "").trim();
-    const agentMatch = textWithoutProjectNumber.match(/(?:PM|Architect|Dev|QA)\s*:?\s*([\s\S]*)/i);
+    const agentMatch = textWithoutProjectNumber.match(/(?:PM|Architect|Dev|QA)\s*[:;]?\s*([\s\S]*)/i);
     const task = (agentMatch ? agentMatch[1].trim() : textWithoutProjectNumber.trim()).replace(/\.\s*$/, "");
     const agentName = textWithoutProjectNumber.match(/(PM|Architect|Dev|QA)/i)?.[1] ?? "PM";
 
@@ -76,7 +77,7 @@ export function registerRouter(app: App): void {
       });
     };
 
-    if (!existsSync(project.repoPath)) {
+    if (!existsSync(join(project.repoPath, ".git"))) {
       if (!task) {
         await postInThread(
           "This channel doesn't have a local repo yet. Describe what you want to build and I'll set everything up.\nExample: `@AI Team PM: Build a todo app with user auth. githubProjectNumber: 2`"
