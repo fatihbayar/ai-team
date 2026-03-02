@@ -338,7 +338,7 @@ export async function bootstrapAndStart(
       `You are bootstrapping a new project. Do the following in order.\n\n` +
       `1. Create GitHub repo and local clone:\n` +
       `   - From directory: ${projectsDir}\n` +
-      `   - Run: gh repo create ${project.githubSlug} --public --add-readme --clone\n` +
+      `   - Run: gh repo create ${project.githubSlug} --private --add-readme --clone\n` +
       `   This creates the repo and clones it to ${project.repoPath}\n\n` +
       `2. Ensure GitHub Project #${project.githubProjectNumber} has a Status single-select field with exactly these options: Triage, Architecture, In Development, In QA, Needs Fix, Done.\n` +
       `   - Use \`gh project field-list ${project.githubProjectNumber} --owner ${env.githubOwner} --format json\` to check.\n` +
