@@ -25,5 +25,6 @@ export interface WorkflowState {
   prUrl: string | null;
   ticketBody: string | null;
   solutionDoc: string | null;
+  qaRetries: number;
   createdAt: number;
 }

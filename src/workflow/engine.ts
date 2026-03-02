@@ -70,6 +70,7 @@ function looksLikeQaApproval(output: string): boolean {
   return output.includes("[QA_APPROVED]");
 }
 
+const MAX_QA_DEV_CYCLES = 3;
 const PROJECT_ITEM_RESOLVE_RETRIES = 5;
 const PROJECT_ITEM_RESOLVE_DELAY_MS = 2000;
 
@@ -135,6 +136,7 @@ export async function start(
     prUrl: null,
     ticketBody: null,
     solutionDoc: null,
+    qaRetries: 0,
     createdAt: Date.now(),
   };
   store.set(threadTs, state);
@@ -182,20 +184,28 @@ async function runAgentForState(
 
   await postInThread(`_Running ${currentAgent} agent..._`);
 
-  const result = await Promise.race([
-    runAgent({
-      role: currentAgent,
-      task,
-      cwd: project.repoPath,
-      allowedTools: config.allowedTools,
-    }),
-    new Promise<never>((_, reject) =>
-      setTimeout(
-        () => reject(new Error(`Agent ${currentAgent} timed out after ${Math.round(agentTimeoutMs / 60000)} minutes`)),
-        agentTimeoutMs,
-      )
-    ),
-  ]);
+  let result: string;
+  try {
+    result = await Promise.race([
+      runAgent({
+        role: currentAgent,
+        task,
+        cwd: project.repoPath,
+        allowedTools: config.allowedTools,
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`Agent ${currentAgent} timed out after ${Math.round(agentTimeoutMs / 60000)} minutes`)),
+          agentTimeoutMs,
+        )
+      ),
+    ]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Agent ${currentAgent} failed:`, err);
+    await postInThread(`_Agent ${currentAgent} failed: ${message}_`);
+    throw err;
+  }
 
   await postInThread(escapeSlackMrkdwn(result));
 
@@ -262,6 +272,13 @@ async function runAgentForState(
       await postInThread("_Workflow complete. QA approved._");
       return;
     }
+    state.qaRetries += 1;
+    if (state.qaRetries > MAX_QA_DEV_CYCLES) {
+      await postInThread(
+        `_QA rejected ${MAX_QA_DEV_CYCLES} times. Stopping workflow to avoid an infinite loop. Please review the issues manually._`
+      );
+      return;
+    }
     state.currentAgent = "developer";
     if (state.projectItemId) {
       try {
@@ -271,7 +288,7 @@ async function runAgentForState(
         await postInThread("_Could not set status to Needs Fix._");
       }
     }
-    await postInThread("_Re-triggering Developer with QA feedback._");
+    await postInThread(`_Re-triggering Developer with QA feedback (attempt ${state.qaRetries}/${MAX_QA_DEV_CYCLES})._`);
     const devTask = `QA found issues. Please fix and push. Feedback:\n\n${result}\n\nThen the workflow will run QA again.`;
     await runAgentForState(state, devTask, postInThread);
     return;
