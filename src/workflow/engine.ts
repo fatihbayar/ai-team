@@ -70,6 +70,10 @@ function looksLikeQaApproval(output: string): boolean {
   return output.includes("[QA_APPROVED]");
 }
 
+function looksLikeQaRejection(output: string): boolean {
+  return output.includes("[QA_REJECTED]");
+}
+
 const MAX_QA_DEV_CYCLES = 3;
 const PROJECT_ITEM_RESOLVE_RETRIES = 5;
 const PROJECT_ITEM_RESOLVE_DELAY_MS = 2000;
@@ -272,6 +276,14 @@ async function runAgentForState(
       await postInThread("_Workflow complete. QA approved._");
       return;
     }
+
+    if (!looksLikeQaRejection(result)) {
+      await postInThread(
+        "_QA ended without a clear verdict (possibly timed out). Please review the thread and re-run QA or address manually._"
+      );
+      return;
+    }
+
     state.qaRetries += 1;
     if (state.qaRetries > MAX_QA_DEV_CYCLES) {
       await postInThread(
@@ -289,7 +301,18 @@ async function runAgentForState(
       }
     }
     await postInThread(`_Re-triggering Developer with QA feedback (attempt ${state.qaRetries}/${MAX_QA_DEV_CYCLES})._`);
-    const devTask = `QA found issues. Please fix and push. Feedback:\n\n${result}\n\nThen the workflow will run QA again.`;
+    const issueNum = state.issueNumber ?? 0;
+    const slug = project.githubSlug;
+    const devTask =
+      `QA found issues with your PR. Fix them, push, and the workflow will re-run QA.\n\n` +
+      `Repository: ${slug}\n` +
+      `Issue: #${issueNum}\n` +
+      `PR: ${state.prUrl ?? "unknown"}\n` +
+      `Default branch: ${project.defaultBranch}\n\n` +
+      `## QA Findings\n\n${result}\n\n` +
+      `After fixing:\n` +
+      `1. Push your changes to the existing PR branch\n` +
+      `2. Output the PR URL on its own line (e.g. ${state.prUrl ?? `https://github.com/${slug}/pull/N`})`;
     await runAgentForState(state, devTask, postInThread);
     return;
   }
@@ -336,7 +359,7 @@ function buildTaskForRole(role: AgentRole, state: WorkflowState): string {
         `3. Run the test suite (e.g. npx vitest run), then verify each acceptance criterion.\n` +
         `4. Use agent-browser for browser-based checks (see your instructions).\n\n` +
         `Original ticket (for reference):\n${state.ticketBody ?? "See thread."}\n\n` +
-        `Either approve (end with [QA_APPROVED] on its own line) or list issues for the Developer with Expected/Actual/Repro/Severity.`
+        `Either approve (end with [QA_APPROVED] on its own line) or list issues and reject (end with [QA_REJECTED] on its own line).`
       );
     }
     default:

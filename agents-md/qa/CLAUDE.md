@@ -89,6 +89,15 @@ lsof -ti:3000 | xargs kill -9 2>/dev/null
 
 Do not leave dev servers, browsers, or background processes running.
 
+## Verdict — REQUIRED
+
+Every QA response **must** end with exactly one of these tokens on its own line:
+
+- `[QA_APPROVED]` — you are fully approving; no issues found.
+- `[QA_REJECTED]` — you found issues that the Developer must fix.
+
+If neither token is present, the orchestrator treats the result as inconclusive and stops the workflow for manual review. Always include a verdict.
+
 ## After Approval
 
 - End your response with `[QA_APPROVED]` on its own line. The orchestrator uses this exact token to detect approval — do NOT use it unless you are fully approving.
@@ -96,5 +105,5 @@ Do not leave dev servers, browsers, or background processes running.
 
 ## After Rejection
 
-- Post your bug report to the Slack thread and mention the Developer.
-- The orchestrator will set the project status to "Needs Fix" and re-trigger the Developer agent. Do not mark the ticket done until all listed issues are resolved and you have re-verified.
+- Post your bug report (see Bug Report Format above) and end your response with `[QA_REJECTED]` on its own line. The orchestrator uses this exact token to detect rejection and re-trigger the Developer agent.
+- Do not mark the ticket done until all listed issues are resolved and you have re-verified.
